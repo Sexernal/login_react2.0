@@ -2,32 +2,60 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import api from "../../lib/api";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [userEmail, setUserEmail] = useState(null);
-  const [avatarData, setAvatarData] = useState(null); //base64
+  const [avatarData, setAvatarData] = useState(null); // base64
   const fileRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
     const raw = localStorage.getItem("user");
-    if (!raw) {
-      router.replace("/");
+
+    if (raw) {
+      try {
+        const u = JSON.parse(raw);
+        setUserEmail(u.email || "Usuario");
+        setAvatarData(u.avatar || null);
+        return;
+      } catch {
+        localStorage.removeItem("user");
+      }
+    }
+
+    // Si no hay usuario en localStorage pero hay token, pedir perfil al backend
+    if (token) {
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      api.get("/api/profile")
+        .then((res) => {
+          const u = res.data?.data || res.data || {};
+          setUserEmail(u.email || u.name || "Usuario");
+          setAvatarData(u.avatar || null);
+          // guardar para futuras cargas
+          localStorage.setItem("user", JSON.stringify(u));
+        })
+        .catch((err) => {
+          console.error("No se pudo obtener perfil:", err.response?.data || err.message);
+          // si 401 o similar -> forzar logout
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          router.replace("/");
+        });
       return;
     }
-    try {
-      const u = JSON.parse(raw);
-      setUserEmail(u.email || "Usuario");
-      setAvatarData(u.avatar || null); // si hay avatar guardado se carga
-    } catch {
-      localStorage.removeItem("user");
-      router.replace("/");
-    }
+
+    // Si no hay ni token ni user -> redirigir al login
+    router.replace("/");
   }, [router]);
 
   const logout = () => {
+    localStorage.removeItem("token");
     localStorage.removeItem("user");
+    delete api.defaults.headers.common["Authorization"];
     router.replace("/");
   };
 
@@ -39,7 +67,6 @@ export default function DashboardPage() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
-    // Opcional: limitar tamaño para no sobrecargar la vara
     const maxSizeBytes = 1.5 * 1024 * 1024;
     if (file.size > maxSizeBytes) {
       alert("La imagen es muy grande. Elige una menor a 1.5 MB.");
@@ -48,10 +75,9 @@ export default function DashboardPage() {
 
     const reader = new FileReader();
     reader.onload = () => {
-      const base64 = reader.result; // data:image/...;base64,...
+      const base64 = reader.result;
       setAvatarData(base64);
 
-      // actualizar localStorage (mantener email y otros datos)
       try {
         const raw = localStorage.getItem("user");
         const u = raw ? JSON.parse(raw) : {};
@@ -64,15 +90,14 @@ export default function DashboardPage() {
     reader.readAsDataURL(file);
   };
 
-  // Fondo simple
+  if (!userEmail) return null;
+
   const backgroundStyle = {
     background:
       "linear-gradient(180deg, rgba(243,244,246,1) 0%, rgba(255,255,255,1) 100%)",
     minHeight: "100vh",
     padding: 32,
   };
-
-  if (!userEmail) return null;
 
   return (
     <div style={backgroundStyle}>
@@ -99,7 +124,6 @@ export default function DashboardPage() {
                   }}
                 />
               ) : (
-                // letra inicial si no hay imagen
                 <div style={{ fontWeight: 800, color: "#0f172a" }}>
                   {(userEmail[0] || "U").toUpperCase()}
                 </div>
@@ -137,7 +161,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* input oculto para archivos */}
         <input
           ref={fileRef}
           type="file"
@@ -146,7 +169,6 @@ export default function DashboardPage() {
           onChange={handleFileChange}
         />
 
-        {/* Solo tarjeta "Mi perfil" */}
         <section style={{ marginTop: 28 }}>
           <div className="card" style={{ padding: 18, maxWidth: 700 }}>
             <h3 style={{ marginTop: 0 }}>Mi perfil</h3>
