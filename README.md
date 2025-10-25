@@ -1,6 +1,9 @@
-git clone https://github.com/Sexernal/login_react2.0.git
+# clona el repositorio
+git clone https://github.com/Sexernal/login_react2.0.
+# moverte a la carpeta del reposirotio
 cd login_react2.0
-npm install          # instala dependencias
+# instala dependencias
+npm install
 # si axios no está ejecutar:
 npm install axios
 # crear archivo local de variables
